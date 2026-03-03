@@ -1,15 +1,15 @@
 /**
  * ================================================================
  * SISTEMA DE CAJA MENOR - PUNTO MEDICAL
- * Google Apps Script — versión auditada y corregida
+ * Google Apps Script
  * ================================================================
  */
 
 const SPREADSHEET_ID = '1qmks4ElTbXzA6iIktibasX-vHQYtnyNnLfDQzrWCtb4';
 
 const MESES = {
-  1: 'ENERO',    2: 'FEBRERO',   3: 'MARZO',     4: 'ABRIL',
-  5: 'MAYO',     6: 'JUNIO',     7: 'JULIO',      8: 'AGOSTO',
+  1: 'ENERO', 2: 'FEBRERO', 3: 'MARZO', 4: 'ABRIL',
+  5: 'MAYO', 6: 'JUNIO', 7: 'JULIO', 8: 'AGOSTO',
   9: 'SEPTIEMBRE', 10: 'OCTUBRE', 11: 'NOVIEMBRE', 12: 'DICIEMBRE'
 };
 
@@ -21,7 +21,7 @@ function doGet(e) {
     if (action === 'consultarCajaMenor') {
       return consultarCajaMenor(e.parameter.mes, e.parameter.anio);
     }
-    return jsonResponse({ success: false, message: 'Acción GET no válida' });
+    return jsonResponse({ success: false, message: 'Accion GET no valida: ' + action });
   } catch (error) {
     Logger.log('[doGet] Error: ' + error);
     return jsonResponse({ success: false, message: error.toString() });
@@ -30,16 +30,20 @@ function doGet(e) {
 
 function doPost(e) {
   try {
-    // Apps Script recibe text/plain y application/json igual en postData.contents
-    const data   = JSON.parse(e.postData.contents);
+    if (!e || !e.postData || !e.postData.contents) {
+      return jsonResponse({ success: false, message: 'Request vacio o malformado' });
+    }
+    const data = JSON.parse(e.postData.contents);
     const action = data.action;
+    Logger.log('[doPost] action=' + action);
+
     if (action === 'registrarCajaMenor') {
       return registrarCajaMenor(
         data.fecha, data.detalle, data.nit,
         data.proveedor, data.factura, data.valor, data.observaciones
       );
     }
-    return jsonResponse({ success: false, message: 'Acción POST no válida' });
+    return jsonResponse({ success: false, message: 'Accion POST no valida: ' + action });
   } catch (error) {
     Logger.log('[doPost] Error: ' + error);
     return jsonResponse({ success: false, message: error.toString() });
@@ -51,41 +55,65 @@ function doPost(e) {
 function registrarCajaMenor(fecha, detalle, nit, proveedor, factura, valor, observaciones) {
   try {
     const { mes, anio } = parseFecha(fecha);
-    Logger.log('[registrarCajaMenor] fecha=%s mes=%s anio=%s detalle=%s valor=%s', fecha, mes, anio, detalle, valor);
+    Logger.log('[registrarCajaMenor] fecha=' + fecha + ' mes=' + mes + ' anio=' + anio + ' detalle=' + detalle + ' valor=' + valor);
 
     if (anio < 2025 || (anio === 2025 && mes < 11)) {
-      Logger.log('[registrarCajaMenor] Fecha no permitida');
       return jsonResponse({ success: false, message: 'Solo se permite desde NOVIEMBRE 2025' });
     }
 
-    const nombreHoja = `${MESES[mes]} ${anio}`;
-    const ss         = SpreadsheetApp.openById(SPREADSHEET_ID);
-    let   sheet      = ss.getSheetByName(nombreHoja);
+    if (!MESES[mes]) {
+      return jsonResponse({ success: false, message: 'Mes invalido extraido de la fecha: ' + mes + ' (fecha raw: ' + fecha + ')' });
+    }
+
+    const nombreHoja = MESES[mes] + ' ' + anio;
+    Logger.log('[registrarCajaMenor] Hoja destino resuelta: "' + nombreHoja + '"');
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    let sheet = ss.getSheetByName(nombreHoja);
     if (!sheet) {
       Logger.log('[registrarCajaMenor] Creando hoja: ' + nombreHoja);
       sheet = crearHojaCajaMenor(ss, nombreHoja);
     }
 
-    // Obtener la primera fila vacía de forma segura (sin bucle con getRange individual)
-    const lastRow = sheet.getLastRow();
-    const row     = Math.max(lastRow + 1, 10); // nunca antes de fila 10
+    // ── Buscar la primera fila libre desde la fila 10 en la columna C (col 3) ──
+    const PRIMERA_FILA_DATOS = 10;
+    const COL_FECHA = 3; // Columna C
 
-    Logger.log('[registrarCajaMenor] Escribiendo en fila: ' + row);
+    // Leer todos los valores de la columna C desde la fila 10 hasta el final de la hoja
+    const ultimaFila = Math.max(sheet.getLastRow(), PRIMERA_FILA_DATOS - 1);
+    let filaLibre = PRIMERA_FILA_DATOS;
 
-    // Una sola llamada a la API en vez de 7 individuales
-    sheet.getRange(row, 3, 1, 7).setValues([[
+    if (ultimaFila >= PRIMERA_FILA_DATOS) {
+      const valoresColC = sheet.getRange(PRIMERA_FILA_DATOS, COL_FECHA, ultimaFila - PRIMERA_FILA_DATOS + 1, 1).getValues();
+      filaLibre = PRIMERA_FILA_DATOS; // por defecto, si todo está vacío
+      for (let i = 0; i < valoresColC.length; i++) {
+        if (valoresColC[i][0] !== '' && valoresColC[i][0] !== null) {
+          filaLibre = PRIMERA_FILA_DATOS + i + 1; // la siguiente a la última ocupada
+        }
+      }
+    }
+
+    Logger.log('[registrarCajaMenor] Escribiendo en fila: ' + filaLibre);
+
+    // Escribir número correlativo en col B
+    const numRegistro = filaLibre - PRIMERA_FILA_DATOS + 1;
+    sheet.getRange(filaLibre, 2).setValue(numRegistro); // Col B: número
+
+    // Escribir datos en columnas C a I
+    sheet.getRange(filaLibre, COL_FECHA, 1, 7).setValues([[
       fecha,
-      detalle      || '',
-      nit          || '',
-      proveedor    || '',
-      factura      || '',
-      valor        || 0,
+      detalle || '',
+      nit || '',
+      proveedor || '',
+      factura || '',
+      Number(valor) || 0,
       observaciones || ''
     ]]);
-    sheet.getRange(row, 8).setNumberFormat('$ #,##0.00');
 
-    Logger.log('[registrarCajaMenor] Guardado exitosamente');
-    return jsonResponse({ success: true, message: 'Registro de Caja Menor guardado' });
+    // Formato de moneda en columna H (col 8)
+    sheet.getRange(filaLibre, 8).setNumberFormat('$ #,##0.00');
+
+    Logger.log('[registrarCajaMenor] Guardado exitosamente en fila ' + filaLibre);
+    return jsonResponse({ success: true, message: 'Registro de Caja Menor guardado en fila ' + filaLibre });
 
   } catch (error) {
     Logger.log('[registrarCajaMenor] Error: ' + error);
@@ -97,44 +125,54 @@ function registrarCajaMenor(fecha, detalle, nit, proveedor, factura, valor, obse
 
 function consultarCajaMenor(mes, anio) {
   try {
-    // FIX: mes puede llegar como nombre ("NOVIEMBRE") o como número ("11")
-    // Normalizamos siempre a nombre en español mayúsculas
     const nombreMes = resolverNombreMes(mes);
     if (!nombreMes) {
-      return jsonResponse({ success: false, message: 'Mes inválido: ' + mes });
+      return jsonResponse({ success: false, message: 'Mes invalido: ' + mes });
     }
 
-    const nombreHoja = `${nombreMes} ${anio}`;
+    const nombreHoja = nombreMes + ' ' + anio;
     Logger.log('[consultarCajaMenor] Buscando hoja: ' + nombreHoja);
 
-    const ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     const sheet = ss.getSheetByName(nombreHoja);
 
     if (!sheet) {
-      Logger.log('[consultarCajaMenor] Hoja no encontrada: ' + nombreHoja);
-      return jsonResponse({ success: false, message: `No existe la hoja para ${nombreHoja}` });
+      return jsonResponse({ success: false, message: 'No existe la hoja: ' + nombreHoja });
     }
 
-    // Leer todos los datos de una vez (más eficiente)
-    const datos     = sheet.getDataRange().getValues();
+    const datos = sheet.getDataRange().getValues();
     const registros = [];
 
-    // Fila 10 = índice 9 en el array (encabezados en fila 9 = índice 8)
+    // Datos empiezan en fila 10 (índice 9), columnas C-I (índices 2-8)
     for (let i = 9; i < datos.length; i++) {
-      if (!datos[i][2]) continue; // columna C vacía = fila vacía
+      if (!datos[i][2]) continue; // Saltar si col C (fecha) está vacía
       registros.push({
-        fecha:         datos[i][2],
-        detalle:       datos[i][3],
-        nit:           datos[i][4],
-        proveedor:     datos[i][5],
-        factura:       datos[i][6],
-        valor:         datos[i][7],
-        observaciones: datos[i][8]
+        numero: datos[i][1],  // Col B: número correlativo
+        fecha: datos[i][2],  // Col C
+        detalle: datos[i][3],  // Col D
+        nit: datos[i][4],  // Col E
+        proveedor: datos[i][5],  // Col F
+        factura: datos[i][6],  // Col G
+        valor: datos[i][7],  // Col H
+        observaciones: datos[i][8]   // Col I
       });
     }
 
     Logger.log('[consultarCajaMenor] Registros encontrados: ' + registros.length);
-    return jsonResponse({ success: true, registros });
+
+    // Total de caja menor del mes → siempre en H93
+    let totalCaja = 0;
+    try {
+      const valorH93 = sheet.getRange('H93').getValue();
+      totalCaja = (valorH93 !== '' && valorH93 !== null && !isNaN(parseFloat(valorH93)))
+        ? parseFloat(valorH93)
+        : 0;
+    } catch (e) {
+      Logger.log('[consultarCajaMenor] Error leyendo H93: ' + e);
+    }
+
+    Logger.log('[consultarCajaMenor] totalCaja (H93)=' + totalCaja);
+    return jsonResponse({ success: true, registros: registros, totalCaja: totalCaja });
 
   } catch (error) {
     Logger.log('[consultarCajaMenor] Error: ' + error);
@@ -142,43 +180,98 @@ function consultarCajaMenor(mes, anio) {
   }
 }
 
-// ==================== FUNCIONES AUXILIARES ====================
+// ==================== AUXILIARES ====================
 
-/**
- * Resuelve el nombre del mes ya sea que llegue como número ("11") o nombre ("NOVIEMBRE").
- * Retorna el nombre en mayúsculas, o null si es inválido.
- */
 function resolverNombreMes(mes) {
-  // Si ya es un nombre de mes válido en español
   const mesUpper = mes.toString().toUpperCase().trim();
-  const esNombre = Object.values(MESES).includes(mesUpper);
-  if (esNombre) return mesUpper;
-
-  // Si es un número
+  if (Object.values(MESES).includes(mesUpper)) return mesUpper;
   const mesNum = parseInt(mes);
   if (!isNaN(mesNum) && MESES[mesNum]) return MESES[mesNum];
-
   return null;
 }
 
+/**
+ * Parsea la fecha de forma robusta.
+ *
+ * Acepta los formatos más comunes que puede enviar el frontend o Google:
+ *   • YYYY-MM-DD  (input type="date" estándar)
+ *   • DD/MM/YYYY  (formato colombiano)
+ *   • DD-MM-YYYY
+ *   • Objeto Date de JavaScript (si Apps Script lo deserializa así)
+ *
+ * IMPORTANTE: NO usamos `new Date(fechaString)` porque el constructor de Date
+ * en Apps Script/V8 interpreta "YYYY-MM-DD" como UTC medianoche, y según la
+ * zona horaria del script (ej. America/Bogota, UTC-5) puede retroceder un día
+ * o cambiar el mes. En su lugar, parseamos los componentes manualmente.
+ */
 function parseFecha(fecha) {
-  const p = fecha.split('-');
-  return { anio: parseInt(p[0]), mes: parseInt(p[1]), dia: parseInt(p[2]) };
+  // Si ya es un objeto Date (Apps Script a veces deserializa así)
+  if (fecha instanceof Date) {
+    return {
+      anio: fecha.getFullYear(),
+      mes: fecha.getMonth() + 1,
+      dia: fecha.getDate()
+    };
+  }
+
+  const str = fecha.toString().trim();
+  Logger.log('[parseFecha] Parseando fecha raw: "' + str + '"');
+
+  // Formato YYYY-MM-DD (el más común desde input type="date")
+  const matchISO = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (matchISO) {
+    return {
+      anio: parseInt(matchISO[1]),
+      mes: parseInt(matchISO[2]),
+      dia: parseInt(matchISO[3])
+    };
+  }
+
+  // Formato DD/MM/YYYY o DD-MM-YYYY (formato colombiano)
+  const matchCOL = str.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
+  if (matchCOL) {
+    return {
+      anio: parseInt(matchCOL[3]),
+      mes: parseInt(matchCOL[2]),
+      dia: parseInt(matchCOL[1])
+    };
+  }
+
+  // Último recurso: intentar con Date pero usando zona horaria local del script
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    // Usamos la zona horaria del spreadsheet para evitar desfase UTC
+    const tz = SpreadsheetApp.openById(SPREADSHEET_ID).getSpreadsheetTimeZone();
+    const partes = Utilities.formatDate(d, tz, 'yyyy-MM-dd').split('-');
+    Logger.log('[parseFecha] Fallback Date usado, tz=' + tz + ' resultado=' + partes);
+    return {
+      anio: parseInt(partes[0]),
+      mes: parseInt(partes[1]),
+      dia: parseInt(partes[2])
+    };
+  }
+
+  throw new Error('Formato de fecha no reconocido: "' + str + '"');
 }
 
 function crearHojaCajaMenor(ss, nombreHoja) {
-  const sheet   = ss.insertSheet(nombreHoja);
-  const headers = ['FECHA', 'DETALLE', 'NIT', 'PROVEEDOR', 'N° FAC', 'VALOR', 'OBSERVACIONES'];
-  const anchos  = [120, 180, 120, 180, 120, 120, 200];
+  const sheet = ss.insertSheet(nombreHoja);
 
-  // Encabezados en fila 9 (datos desde fila 10)
-  sheet.getRange(9, 3, 1, headers.length).setValues([headers]);
-  sheet.getRange(9, 3, 1, headers.length)
-    .setFontWeight('bold')
-    .setBackground('#ffe599')
+  // Encabezados en fila 9, columnas C-I
+  const headers = [['FECHA', 'DETALLE', 'NIT', 'PROVEEDOR', 'N° FAC', 'VALOR', 'OBSERVACIONES']];
+  const anchos = [120, 180, 120, 180, 120, 120, 200];
+
+  // Encabezado de columna B
+  sheet.getRange(9, 2).setValue('#').setFontWeight('bold').setBackground('#ffe599')
+    .setBorder(true, true, true, true, true, true);
+  sheet.setColumnWidth(2, 40);
+
+  const headerRange = sheet.getRange(9, 3, 1, 7);
+  headerRange.setValues(headers);
+  headerRange.setFontWeight('bold').setBackground('#ffe599')
     .setBorder(true, true, true, true, true, true);
 
-  anchos.forEach((ancho, i) => sheet.setColumnWidth(3 + i, ancho));
+  anchos.forEach(function (ancho, i) { sheet.setColumnWidth(3 + i, ancho); });
 
   return sheet;
 }
@@ -187,4 +280,13 @@ function jsonResponse(obj) {
   return ContentService
     .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ==================== TEST MANUAL ====================
+function testRegistrar() {
+  const resultado = registrarCajaMenor(
+    '2026-02-25', 'CAFETERIA', '123456',
+    'Proveedor Test', 'FAC-001', 15000, 'Prueba manual'
+  );
+  Logger.log('Resultado: ' + resultado.getContent());
 }

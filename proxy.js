@@ -12,7 +12,8 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzvGYWMsmoPmhSrDTsUgZLxp5Zr1zf-ERbg5jOyD58zrYO5vnWh8STguGqEC9fGiSlIbQ/exec';
+require('dotenv').config();
+const SCRIPT_URL = process.env.SCRIPT_URL;
 
 app.post('/api/caja', async (req, res) => {
   try {

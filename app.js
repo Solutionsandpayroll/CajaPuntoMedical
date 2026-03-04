@@ -31,7 +31,7 @@
 // ==================== CONFIGURACIÓN ====================
 // ⚠️ PON AQUÍ TU URL REAL — es la misma para todas las acciones
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzSj8lQUCYXutHgKQYtrQohUCD-qexDykNP3NrP9TJr6HHpK099HYQNr1SEOymanQ7qHQ/exec';
-const CAJA_MENOR_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxb7RDLMuxY1Flf2PCTKjqDIxy03T1JH-xcQ3AXQ2i25x1LAM9wUUqNrxZq2QJEEHWo/exec';
+const CAJA_MENOR_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxOPHnypV2AxdSZd4U-BFjYM2nOahMCCwAoCGQHzx5fPMzMoyevWPvQYsG8uN1EA7EZ/exec';
 const PLANTILLA_GID = '1606540802'; // GID numérico de la hoja PLANTILLA
 
 // ==================== ESTADO ====================
@@ -98,7 +98,7 @@ function showTab(tab) {
 // ==================== MOVIMIENTOS ====================
 function agregarMovimiento() {
     const tipo = document.getElementById('tipoMovimiento').value;
-    const monto = parseFloat(document.getElementById('montoMovimiento').value);
+    const monto = parseMiles(document.getElementById('montoMovimiento').value);
     const concepto = document.getElementById('conceptoMovimiento').value.trim();
 
     if (!monto || isNaN(monto) || monto <= 0) {
@@ -121,6 +121,68 @@ function eliminarMovimiento(idx) {
     movimientos.splice(idx, 1);
     actualizarListaMovimientos();
     actualizarResumen();
+}
+
+function editarMovimiento(idx) {
+    const mov = movimientos[idx];
+    const lista = document.getElementById('listaMovimientos');
+    const items = lista.querySelectorAll('.mov-item');
+    const item = items[idx];
+    if (!item) return;
+
+    const isEntrada = mov.tipo === 'entrada';
+    const badgeBg = isEntrada ? 'bg-green-100' : 'bg-red-100';
+    const icon = isEntrada ? 'fa-arrow-down' : 'fa-arrow-up';
+    const color = isEntrada ? 'text-green-600' : 'text-red-500';
+
+    item.innerHTML = `
+        <span class="${badgeBg} rounded-full p-2">
+            <i class="fas ${icon} ${color}"></i>
+        </span>
+        <input id="editConcepto_${idx}" type="text" value="${mov.concepto}"
+            class="flex-1 px-3 py-1.5 rounded-lg border-2 border-sky-300 focus:border-sky-500 focus:outline-none text-sm font-medium text-gray-700 bg-white">
+        <div class="relative">
+            <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">$</span>
+            <input id="editMonto_${idx}" type="number" value="${mov.monto}" min="0" step="1"
+                class="w-32 pl-6 pr-2 py-1.5 rounded-lg border-2 border-sky-300 focus:border-sky-500 focus:outline-none text-sm font-bold ${color} bg-white">
+        </div>
+        <button onclick="guardarEdicionMovimiento(${idx})"
+            class="ml-2 text-white bg-sky-500 hover:bg-sky-600 transition-colors px-3 py-1.5 rounded-lg text-sm font-semibold flex items-center gap-1"
+            title="Guardar">
+            <i class="fas fa-check text-xs"></i> Guardar
+        </button>
+        <button onclick="actualizarListaMovimientos()"
+            class="ml-1 text-gray-500 hover:text-gray-700 transition-colors px-2 py-1.5 rounded-lg hover:bg-gray-100"
+            title="Cancelar">
+            <i class="fas fa-xmark text-sm"></i>
+        </button>`;
+
+    document.getElementById(`editConcepto_${idx}`)?.focus();
+}
+
+function guardarEdicionMovimiento(idx) {
+    const conceptoInput = document.getElementById(`editConcepto_${idx}`);
+    const montoInput = document.getElementById(`editMonto_${idx}`);
+
+    const nuevoConcepto = conceptoInput?.value.trim();
+    const nuevoMonto = parseFloat(montoInput?.value);
+
+    if (!nuevoConcepto) {
+        showToast('El concepto no puede estar vacío', 'error');
+        conceptoInput?.focus();
+        return;
+    }
+    if (isNaN(nuevoMonto) || nuevoMonto <= 0) {
+        showToast('Ingresa un monto válido', 'error');
+        montoInput?.focus();
+        return;
+    }
+
+    movimientos[idx].concepto = nuevoConcepto;
+    movimientos[idx].monto = nuevoMonto;
+    actualizarListaMovimientos();
+    actualizarResumen();
+    showToast('Movimiento actualizado', 'success');
 }
 
 function actualizarListaMovimientos() {
@@ -146,15 +208,20 @@ function actualizarListaMovimientos() {
         const badgeBg = isEntrada ? 'bg-green-100' : 'bg-red-100';
 
         const item = document.createElement('div');
-        item.className = 'flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3 shadow-sm mb-2 border border-gray-100';
+        item.className = 'mov-item flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3 shadow-sm mb-2 border border-gray-100';
         item.innerHTML = `
             <span class="${badgeBg} rounded-full p-2">
                 <i class="fas ${icon} ${color}"></i>
             </span>
             <span class="font-medium flex-1 text-gray-700">${mov.concepto}</span>
             <span class="${color} font-bold text-base">${signo} ${formatCOP(mov.monto)}</span>
+            <button onclick="editarMovimiento(${idx})"
+                class="ml-2 text-gray-300 hover:text-sky-500 transition-colors p-1 rounded-lg hover:bg-sky-50"
+                title="Editar">
+                <i class="fas fa-pencil text-sm"></i>
+            </button>
             <button onclick="eliminarMovimiento(${idx})"
-                class="ml-2 text-gray-300 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50"
+                class="ml-1 text-gray-300 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50"
                 title="Eliminar">
                 <i class="fas fa-trash text-sm"></i>
             </button>`;
@@ -284,7 +351,7 @@ async function registrarCajaMenor(event) {
     const nit = document.getElementById('nitCajaMenor').value.trim();
     const proveedor = document.getElementById('proveedorCajaMenor').value.trim();
     const factura = document.getElementById('facturaCajaMenor').value.trim();
-    const valor = parseFloat(document.getElementById('valorCajaMenor').value);
+    const valor = parseMiles(document.getElementById('valorCajaMenor').value);
     const observaciones = document.getElementById('obsCajaMenor').value.trim();
 
     if (!fecha || !detalle || !valor || isNaN(valor) || valor <= 0) {
@@ -406,11 +473,6 @@ function mostrarResumen(data) {
     if (el('totalSalidas')) el('totalSalidas').textContent = formatCOP(data.totalSalidas || 0);
     if (el('saldoCaja')) el('saldoCaja').textContent = formatCOP(data.saldo || 0);
     if (el('cajaTotalMes')) el('cajaTotalMes').textContent = formatCOP(data.cajaTotalMes || 0);
-    if (el('cajaFinalHoja')) el('cajaFinalHoja').textContent = formatCOP(data.sobraFalta || 0);
-
-    const cajaFinal = (data.cajaTotalMes || 0) + (data.sobraFalta || 0);
-    if (el('cajaFinalMes')) el('cajaFinalMes').textContent = formatCOP(cajaFinal);
-    window._cajaFinalBase = cajaFinal;
 }
 
 // ==================== CONSULTA DE CAJA MENOR ====================
@@ -529,12 +591,15 @@ function filtrarTablaCM() {
                         <th class="px-4 py-3 font-semibold text-gray-600">Proveedor</th>
                         <th class="px-4 py-3 font-semibold text-gray-600">Factura</th>
                         <th class="px-4 py-3 font-semibold text-gray-600 text-right">Valor</th>
+                        <th class="px-4 py-3 font-semibold text-gray-600 text-center">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${datos.map((r, i) => `
+                    ${datos.map((r) => {
+                        const idxGlobal = _datosCM.indexOf(r);
+                        return `
                         <tr class="border-b border-gray-100 hover:bg-sky-50 transition-colors">
-                            <td class="px-4 py-3 text-gray-400">${r.numero || (i + 1)}</td>
+                            <td class="px-4 py-3 text-gray-400">${r.numero || (idxGlobal + 1)}</td>
                             <td class="px-4 py-3 text-gray-700">${formatFecha(r.fecha)}</td>
                             <td class="px-4 py-3">
                                 <span class="bg-sky-100 text-sky-700 text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap">${r.detalle || '-'}</span>
@@ -542,12 +607,21 @@ function filtrarTablaCM() {
                             <td class="px-4 py-3 text-gray-700">${r.proveedor || '-'}</td>
                             <td class="px-4 py-3 text-gray-500">${r.factura || '-'}</td>
                             <td class="px-4 py-3 text-right font-semibold text-gray-800">${formatCOP(r.valor || 0)}</td>
-                        </tr>`).join('')}
+                            <td class="px-4 py-3 text-center">
+                                <button onclick="abrirEditarCM(${idxGlobal})"
+                                    class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-sky-600 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-lg transition-all active:scale-95"
+                                    title="Editar">
+                                    <i class="fas fa-pencil text-xs"></i>Editar
+                                </button>
+                            </td>
+                        </tr>`;
+                    }).join('')}
                 </tbody>
                 <tfoot>
                     <tr class="bg-sky-50 font-bold border-t-2 border-sky-200">
                         <td colspan="5" class="px-4 py-3 text-sky-800">Total filtrado — ${datos.length} registro${datos.length !== 1 ? 's' : ''}</td>
                         <td class="px-4 py-3 text-right text-sky-800">${formatCOP(totalFiltrado)}</td>
+                        <td></td>
                     </tr>
                 </tfoot>
             </table>
@@ -601,6 +675,23 @@ function formatCOP(valor) {
     return `$${miles},${partes[1]}`;
 }
 
+/** Formatea un string de dígitos con puntos de miles: 1500000 → "1.500.000" */
+function numToMilesStr(n) {
+    const digits = String(Math.floor(Math.abs(Number(n) || 0)));
+    return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+/** Quita los puntos de miles y devuelve el número: "1.500.000" → 1500000 */
+function parseMiles(str) {
+    return parseFloat(String(str || '').replace(/\./g, '')) || 0;
+}
+
+/** Handler oninput: permite solo dígitos y aplica formato de miles en tiempo real */
+function fmtMiles(input) {
+    const raw = String(input.value).replace(/\D/g, '');
+    input.value = raw ? raw.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : '';
+}
+
 function showToast(message, type = 'success') {
     const container = document.getElementById('toastContainer');
     if (!container) return;
@@ -638,6 +729,131 @@ function setLoading(buttonId, loading, restoreHTML) {
         : restoreHTML;
 }
 
+// ==================== EDICIÓN CAJA MENOR ====================
+let _editandoCMIdx = null;
+
+function abrirEditarCM(idx) {
+    const r = _datosCM[idx];
+    if (!r) return;
+    _editandoCMIdx = idx;
+
+    const detalles = ['CAFETERÍA', 'TRANSPORTE', 'ASEO', 'PARQUEADERO', 'ENVÍOS', 'OTROS'];
+    const selectEl = document.getElementById('editCM_detalle');
+    if (selectEl) {
+        selectEl.innerHTML = detalles
+            .map(d => `<option value="${d}" ${r.detalle === d ? 'selected' : ''}>${d}</option>`)
+            .join('');
+    }
+    const valorEl = document.getElementById('editCM_valor');
+    if (valorEl) valorEl.value = r.valor ? numToMilesStr(r.valor) : '';
+    const obsEl = document.getElementById('editCM_obs');
+    if (obsEl) obsEl.value = r.observaciones || '';
+
+    // Info contextual
+    const infoEl = document.getElementById('editCM_info');
+    if (infoEl) infoEl.textContent = `${formatFecha(r.fecha)} — ${r.proveedor || 'Sin proveedor'}`;
+
+    document.getElementById('modalEditarCM')?.classList.remove('hidden');
+}
+
+function cerrarEditarCM() {
+    _editandoCMIdx = null;
+    document.getElementById('modalEditarCM')?.classList.add('hidden');
+}
+
+async function guardarEdicionCM() {
+    if (_editandoCMIdx === null) return;
+    const r = _datosCM[_editandoCMIdx];
+    if (!r) return;
+
+    const detalle = document.getElementById('editCM_detalle')?.value;
+    const valorRaw = parseMiles(document.getElementById('editCM_valor')?.value);
+    const observaciones = document.getElementById('editCM_obs')?.value.trim() || '';
+
+    if (!detalle) { showToast('Selecciona un detalle', 'error'); return; }
+    if (isNaN(valorRaw) || valorRaw <= 0) { showToast('Ingresa un valor válido', 'error'); return; }
+
+    const mes  = document.getElementById('mesCM')?.value;
+    const anio = document.getElementById('anioCM')?.value;
+
+    const btnGuardar = document.getElementById('btnGuardarEdicionCM');
+    if (btnGuardar) { btnGuardar.disabled = true; btnGuardar.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Guardando...'; }
+
+    try {
+        // no-cors: el request llega aunque no podamos leer la respuesta
+        await fetch(CAJA_MENOR_SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+                action: 'editarCajaMenor',
+                mes, anio,
+                fila: r.fila,
+                detalle, valor: valorRaw, observaciones
+            })
+        });
+
+        // Actualizar en memoria
+        r.detalle = detalle;
+        r.valor = valorRaw;
+        r.observaciones = observaciones;
+
+        cerrarEditarCM();
+        filtrarTablaCM();
+        showToast('Registro actualizado correctamente', 'success');
+    } catch (err) {
+        console.error('[guardarEdicionCM] Error:', err);
+        showToast('Error de conexión al guardar', 'error');
+    } finally {
+        if (btnGuardar) { btnGuardar.disabled = false; btnGuardar.innerHTML = '<i class="fas fa-check mr-1"></i>Guardar cambios'; }
+    }
+}
+
+// ==================== CONTEO DE DINERO ====================
+function abrirConteoDinero() {
+    // Limpiar campos
+    const ids = ['cnt_m_50','cnt_m_100','cnt_m_200','cnt_m_500','cnt_m_1000',
+                 'cnt_b_1000','cnt_b_2000','cnt_b_5000','cnt_b_10000',
+                 'cnt_b_20000','cnt_b_50000','cnt_b_100000'];
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    const totalEl = document.getElementById('conteoTotal');
+    if (totalEl) totalEl.textContent = '$ 0';
+    window._conteoTotal = 0;
+    document.getElementById('modalConteoDinero')?.classList.remove('hidden');
+}
+
+function cerrarConteoDinero() {
+    document.getElementById('modalConteoDinero')?.classList.add('hidden');
+}
+
+function calcularConteo() {
+    const monedas = [50, 100, 200, 500, 1000];
+    const billetes = [1000, 2000, 5000, 10000, 20000, 50000, 100000];
+    let total = 0;
+    monedas.forEach(d => {
+        const qty = parseInt(document.getElementById(`cnt_m_${d}`)?.value) || 0;
+        total += qty * d;
+    });
+    billetes.forEach(d => {
+        const qty = parseInt(document.getElementById(`cnt_b_${d}`)?.value) || 0;
+        total += qty * d;
+    });
+    window._conteoTotal = total;
+    const el = document.getElementById('conteoTotal');
+    if (el) el.textContent = formatCOP(total);
+}
+
+function aplicarConteo() {
+    const total = window._conteoTotal || 0;
+    const el = document.getElementById('cajaFinalHoja');
+    if (el) el.textContent = formatCOP(total);
+    cerrarConteoDinero();
+    showToast('Total aplicado a Sobra / Falta', 'success');
+}
+
 // ==================== EXPOSICIÓN GLOBAL ====================
 // Necesario para que los atributos onclick="..." del HTML funcionen
 // cuando app.js se carga como módulo o en modo estricto.
@@ -648,4 +864,12 @@ window.cierreCaja = cierreCaja;
 window.consultarCaja = consultarCaja;
 window.consultarCajaMenor = consultarCajaMenor;
 window.consultarCajaMenorPanel = consultarCajaMenorPanel;
+window.fmtMiles = fmtMiles;
 window.filtrarTablaCM = filtrarTablaCM;
+window.abrirEditarCM = abrirEditarCM;
+window.cerrarEditarCM = cerrarEditarCM;
+window.guardarEdicionCM = guardarEdicionCM;
+window.abrirConteoDinero = abrirConteoDinero;
+window.cerrarConteoDinero = cerrarConteoDinero;
+window.calcularConteo = calcularConteo;
+window.aplicarConteo = aplicarConteo;

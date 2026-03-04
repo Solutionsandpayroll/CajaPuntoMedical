@@ -211,7 +211,8 @@
                         </label>
                         <div class="relative">
                             <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">$</span>
-                            <input type="number" id="montoMovimiento" placeholder="0" min="0" step="1"
+                            <input type="text" inputmode="numeric" id="montoMovimiento" placeholder="0"
+                                oninput="fmtMiles(this)"
                                 class="w-full pl-8 pr-4 py-3 rounded-xl input-focus bg-gray-50 hover:bg-white">
                         </div>
                     </div>
@@ -335,7 +336,7 @@
                         <p id="saldoCaja" class="text-2xl font-bold text-blue-800">$0,00</p>
                     </div>
                 </div>
-                <div class="grid md:grid-cols-3 gap-4">
+                <div class="grid md:grid-cols-2 gap-4">
                     <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-5">
                         <div class="flex items-center gap-2 mb-1">
                             <i class="fas fa-coins text-yellow-500"></i>
@@ -344,18 +345,17 @@
                         <span id="cajaTotalMes" class="text-2xl font-bold text-yellow-900">$0,00</span>
                     </div>
                     <div class="bg-lime-50 border border-lime-200 rounded-xl p-5">
-                        <div class="flex items-center gap-2 mb-1">
-                            <i class="fas fa-balance-scale text-lime-500"></i>
-                            <span class="text-sm font-semibold text-lime-700">Sobra / Falta</span>
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-balance-scale text-lime-500"></i>
+                                <span class="text-sm font-semibold text-lime-700">Valor Real</span>
+                            </div>
+                            <button onclick="abrirConteoDinero()"
+                                class="flex items-center gap-1.5 px-3 py-1.5 bg-lime-600 hover:bg-lime-700 active:scale-95 text-white text-xs font-semibold rounded-lg transition-all shadow-sm">
+                                <i class="fas fa-calculator text-xs"></i>Conteo de Dinero
+                            </button>
                         </div>
-                        <span id="cajaFinalHoja" class="text-2xl font-bold text-lime-900">$0,00</span>
-                    </div>
-                    <div class="bg-blue-50 border border-blue-200 rounded-xl p-5">
-                        <div class="flex items-center gap-2 mb-1">
-                            <i class="fas fa-cash-register text-blue-500"></i>
-                            <span class="text-sm font-semibold text-blue-700">Caja Final</span>
-                        </div>
-                        <span id="cajaFinalMes" class="text-2xl font-bold text-blue-900">$0,00</span>
+                        <span id="cajaFinalHoja" class="text-2xl font-bold text-lime-900">—</span>
                     </div>
                 </div>
             </div>
@@ -540,8 +540,8 @@
                             <div class="relative">
                                 <span
                                     class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">$</span>
-                                <input type="number" id="valorCajaMenor" name="valor" placeholder="0" min="0" step="1"
-                                    required
+                                <input type="text" inputmode="numeric" id="valorCajaMenor" name="valor" placeholder="0"
+                                    oninput="fmtMiles(this)" required
                                     class="w-full pl-8 pr-4 py-3 rounded-xl input-focus bg-gray-50 hover:bg-white">
                             </div>
                         </div>
@@ -575,6 +575,213 @@
         </div>
 
     </main>
+
+    <!-- ===== MODAL EDITAR REGISTRO CAJA MENOR ===== -->
+    <div id="modalEditarCM" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 hidden">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+
+            <!-- Header -->
+            <div class="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-sky-100 rounded-xl flex items-center justify-center">
+                        <i class="fas fa-pencil text-sky-600 text-base"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-gray-800">Editar Registro</h3>
+                        <p id="editCM_info" class="text-xs text-gray-500"></p>
+                    </div>
+                </div>
+                <button onclick="cerrarEditarCM()" class="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-lg hover:bg-gray-100">
+                    <i class="fas fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Body -->
+            <div class="px-6 py-5 space-y-4">
+                <div class="space-y-2">
+                    <label class="flex items-center gap-2 text-sm font-medium text-gray-700">
+                        <i class="fas fa-list text-primary"></i>Detalle
+                    </label>
+                    <select id="editCM_detalle"
+                        class="w-full px-4 py-3 rounded-xl input-focus bg-gray-50 hover:bg-white cursor-pointer">
+                        <option value="CAFETERÍA">CAFETERÍA</option>
+                        <option value="TRANSPORTE">TRANSPORTE</option>
+                        <option value="ASEO">ASEO</option>
+                        <option value="PARQUEADERO">PARQUEADERO</option>
+                        <option value="ENVÍOS">ENVÍOS</option>
+                        <option value="OTROS">OTROS</option>
+                    </select>
+                </div>
+                <div class="space-y-2">
+                    <label class="flex items-center gap-2 text-sm font-medium text-gray-700">
+                        <i class="fas fa-dollar-sign text-primary"></i>Valor (COP)
+                    </label>
+                    <div class="relative">
+                        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">$</span>
+                        <input type="text" inputmode="numeric" id="editCM_valor" placeholder="0"
+                            oninput="fmtMiles(this)"
+                            class="w-full pl-8 pr-4 py-3 rounded-xl input-focus bg-gray-50 hover:bg-white">
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    <label class="flex items-center gap-2 text-sm font-medium text-gray-700">
+                        <i class="fas fa-comment-dots text-primary"></i>Observaciones
+                    </label>
+                    <input type="text" id="editCM_obs" maxlength="120" placeholder="Observaciones opcionales"
+                        class="w-full px-4 py-3 rounded-xl input-focus bg-gray-50 hover:bg-white">
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="px-6 py-5 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex gap-3">
+                <button onclick="cerrarEditarCM()"
+                    class="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-100 transition-colors active:scale-95">
+                    Cancelar
+                </button>
+                <button id="btnGuardarEdicionCM" onclick="guardarEdicionCM()"
+                    class="flex-1 py-3 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-semibold text-sm transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center justify-center gap-2">
+                    <i class="fas fa-check"></i>Guardar cambios
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== MODAL CONTEO DE DINERO ===== -->
+    <div id="modalConteoDinero" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 hidden">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] flex flex-col">
+
+            <!-- Header -->
+            <div class="flex items-center justify-between px-6 py-5 border-b border-gray-100 shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-lime-100 rounded-xl flex items-center justify-center">
+                        <i class="fas fa-calculator text-lime-600 text-base"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-gray-800">Conteo de Dinero</h3>
+                        <p class="text-xs text-gray-500">Ingresa la cantidad de cada denominación</p>
+                    </div>
+                </div>
+                <button onclick="cerrarConteoDinero()" class="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-lg hover:bg-gray-100">
+                    <i class="fas fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Body -->
+            <div class="overflow-y-auto px-6 py-5 space-y-6">
+
+                <!-- Monedas -->
+                <div>
+                    <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <i class="fas fa-circle-dollar-to-slot text-yellow-500"></i>Monedas
+                    </p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                            <span class="text-sm font-semibold text-gray-600 w-20">$ 50</span>
+                            <input type="number" id="cnt_m_50" min="0" placeholder="0" oninput="calcularConteo()"
+                                class="flex-1 w-0 min-w-0 bg-transparent text-right text-sm font-bold text-gray-800 focus:outline-none">
+                            <span class="text-xs text-gray-400 shrink-0">uds</span>
+                        </div>
+                        <div class="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                            <span class="text-sm font-semibold text-gray-600 w-20">$ 100</span>
+                            <input type="number" id="cnt_m_100" min="0" placeholder="0" oninput="calcularConteo()"
+                                class="flex-1 w-0 min-w-0 bg-transparent text-right text-sm font-bold text-gray-800 focus:outline-none">
+                            <span class="text-xs text-gray-400 shrink-0">uds</span>
+                        </div>
+                        <div class="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                            <span class="text-sm font-semibold text-gray-600 w-20">$ 200</span>
+                            <input type="number" id="cnt_m_200" min="0" placeholder="0" oninput="calcularConteo()"
+                                class="flex-1 w-0 min-w-0 bg-transparent text-right text-sm font-bold text-gray-800 focus:outline-none">
+                            <span class="text-xs text-gray-400 shrink-0">uds</span>
+                        </div>
+                        <div class="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                            <span class="text-sm font-semibold text-gray-600 w-20">$ 500</span>
+                            <input type="number" id="cnt_m_500" min="0" placeholder="0" oninput="calcularConteo()"
+                                class="flex-1 w-0 min-w-0 bg-transparent text-right text-sm font-bold text-gray-800 focus:outline-none">
+                            <span class="text-xs text-gray-400 shrink-0">uds</span>
+                        </div>
+                        <div class="col-span-2 flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                            <span class="text-sm font-semibold text-gray-600 w-20">$ 1.000</span>
+                            <input type="number" id="cnt_m_1000" min="0" placeholder="0" oninput="calcularConteo()"
+                                class="flex-1 w-0 min-w-0 bg-transparent text-right text-sm font-bold text-gray-800 focus:outline-none">
+                            <span class="text-xs text-gray-400 shrink-0">uds</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Divisor -->
+                <div class="border-t border-gray-100"></div>
+
+                <!-- Billetes -->
+                <div>
+                    <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <i class="fas fa-money-bill-wave text-green-500"></i>Billetes
+                    </p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                            <span class="text-sm font-semibold text-gray-600 w-20">$ 1.000</span>
+                            <input type="number" id="cnt_b_1000" min="0" placeholder="0" oninput="calcularConteo()"
+                                class="flex-1 w-0 min-w-0 bg-transparent text-right text-sm font-bold text-gray-800 focus:outline-none">
+                            <span class="text-xs text-gray-400 shrink-0">uds</span>
+                        </div>
+                        <div class="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                            <span class="text-sm font-semibold text-gray-600 w-20">$ 2.000</span>
+                            <input type="number" id="cnt_b_2000" min="0" placeholder="0" oninput="calcularConteo()"
+                                class="flex-1 w-0 min-w-0 bg-transparent text-right text-sm font-bold text-gray-800 focus:outline-none">
+                            <span class="text-xs text-gray-400 shrink-0">uds</span>
+                        </div>
+                        <div class="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                            <span class="text-sm font-semibold text-gray-600 w-20">$ 5.000</span>
+                            <input type="number" id="cnt_b_5000" min="0" placeholder="0" oninput="calcularConteo()"
+                                class="flex-1 w-0 min-w-0 bg-transparent text-right text-sm font-bold text-gray-800 focus:outline-none">
+                            <span class="text-xs text-gray-400 shrink-0">uds</span>
+                        </div>
+                        <div class="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                            <span class="text-sm font-semibold text-gray-600 w-20">$ 10.000</span>
+                            <input type="number" id="cnt_b_10000" min="0" placeholder="0" oninput="calcularConteo()"
+                                class="flex-1 w-0 min-w-0 bg-transparent text-right text-sm font-bold text-gray-800 focus:outline-none">
+                            <span class="text-xs text-gray-400 shrink-0">uds</span>
+                        </div>
+                        <div class="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                            <span class="text-sm font-semibold text-gray-600 w-20">$ 20.000</span>
+                            <input type="number" id="cnt_b_20000" min="0" placeholder="0" oninput="calcularConteo()"
+                                class="flex-1 w-0 min-w-0 bg-transparent text-right text-sm font-bold text-gray-800 focus:outline-none">
+                            <span class="text-xs text-gray-400 shrink-0">uds</span>
+                        </div>
+                        <div class="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                            <span class="text-sm font-semibold text-gray-600 w-20">$ 50.000</span>
+                            <input type="number" id="cnt_b_50000" min="0" placeholder="0" oninput="calcularConteo()"
+                                class="flex-1 w-0 min-w-0 bg-transparent text-right text-sm font-bold text-gray-800 focus:outline-none">
+                            <span class="text-xs text-gray-400 shrink-0">uds</span>
+                        </div>
+                        <div class="col-span-2 flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+                            <span class="text-sm font-semibold text-gray-600 w-20">$ 100.000</span>
+                            <input type="number" id="cnt_b_100000" min="0" placeholder="0" oninput="calcularConteo()"
+                                class="flex-1 w-0 min-w-0 bg-transparent text-right text-sm font-bold text-gray-800 focus:outline-none">
+                            <span class="text-xs text-gray-400 shrink-0">uds</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer con total y acciones -->
+            <div class="px-6 py-5 border-t border-gray-100 bg-gray-50 rounded-b-2xl shrink-0">
+                <div class="flex items-center justify-between mb-4">
+                    <span class="text-sm font-semibold text-gray-600">Total contado</span>
+                    <span id="conteoTotal" class="text-2xl font-bold text-lime-700">$ 0</span>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="cerrarConteoDinero()"
+                        class="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-100 transition-colors active:scale-95">
+                        Cancelar
+                    </button>
+                    <button onclick="aplicarConteo()"
+                        class="flex-1 py-3 rounded-xl bg-lime-600 hover:bg-lime-700 text-white font-semibold text-sm transition-all shadow-sm hover:shadow-md active:scale-95 flex items-center justify-center gap-2">
+                        <i class="fas fa-check"></i>Aplicar a Valor Real
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Toast Notifications -->
     <div id="toastContainer" class="fixed top-4 right-4 z-50 space-y-2 pointer-events-none"></div>

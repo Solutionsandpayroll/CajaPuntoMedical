@@ -43,6 +43,12 @@ function doPost(e) {
         data.proveedor, data.factura, data.valor, data.observaciones
       );
     }
+    if (action === 'editarCajaMenor') {
+      return editarCajaMenor(
+        data.mes, data.anio, data.fila,
+        data.detalle, data.valor, data.observaciones
+      );
+    }
     return jsonResponse({ success: false, message: 'Accion POST no valida: ' + action });
   } catch (error) {
     Logger.log('[doPost] Error: ' + error);
@@ -147,6 +153,7 @@ function consultarCajaMenor(mes, anio) {
     for (let i = 9; i < datos.length; i++) {
       if (!datos[i][2]) continue; // Saltar si col C (fecha) está vacía
       registros.push({
+        fila: i + 1,           // Fila real en la hoja (1-indexed)
         numero: datos[i][1],  // Col B: número correlativo
         fecha: datos[i][2],  // Col C
         detalle: datos[i][3],  // Col D
@@ -176,6 +183,38 @@ function consultarCajaMenor(mes, anio) {
 
   } catch (error) {
     Logger.log('[consultarCajaMenor] Error: ' + error);
+    return jsonResponse({ success: false, message: error.toString() });
+  }
+}
+
+// ==================== EDICIÓN ====================
+
+function editarCajaMenor(mes, anio, fila, detalle, valor, observaciones) {
+  try {
+    const nombreMes = resolverNombreMes(mes);
+    if (!nombreMes) return jsonResponse({ success: false, message: 'Mes invalido: ' + mes });
+
+    const nombreHoja = nombreMes + ' ' + anio;
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(nombreHoja);
+
+    if (!sheet) return jsonResponse({ success: false, message: 'No existe la hoja: ' + nombreHoja });
+
+    const filaNum = parseInt(fila);
+    if (isNaN(filaNum) || filaNum < 10) {
+      return jsonResponse({ success: false, message: 'Fila invalida: ' + fila });
+    }
+
+    sheet.getRange(filaNum, 4).setValue(detalle || '');        // Col D: detalle
+    sheet.getRange(filaNum, 8).setValue(Number(valor) || 0);  // Col H: valor
+    sheet.getRange(filaNum, 8).setNumberFormat('$ #,##0.00');
+    sheet.getRange(filaNum, 9).setValue(observaciones || ''); // Col I: observaciones
+
+    Logger.log('[editarCajaMenor] Fila ' + filaNum + ' actualizada en ' + nombreHoja);
+    return jsonResponse({ success: true, message: 'Registro actualizado correctamente' });
+
+  } catch (error) {
+    Logger.log('[editarCajaMenor] Error: ' + error);
     return jsonResponse({ success: false, message: error.toString() });
   }
 }

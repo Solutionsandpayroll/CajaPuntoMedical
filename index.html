@@ -200,6 +200,7 @@
                             <i class="fas fa-exchange-alt text-primary"></i>Tipo
                         </label>
                         <select id="tipoMovimiento"
+                            onchange="toggleDatosSalida()"
                             class="w-full px-4 py-3 rounded-xl input-focus bg-gray-50 hover:bg-white cursor-pointer">
                             <option value="entrada">Entrada</option>
                             <option value="salida">Salida</option>
@@ -224,6 +225,24 @@
                             class="w-full px-4 py-3 rounded-xl input-focus bg-gray-50 hover:bg-white">
                     </div>
                 </div>
+
+                <div id="datosSalidaExtra" class="hidden grid md:grid-cols-2 gap-4 mb-4">
+                    <div class="space-y-2">
+                        <label class="flex items-center gap-2 text-sm font-medium text-gray-700">
+                            <i class="fas fa-file-invoice text-primary"></i>N° Factura (solo salida)
+                        </label>
+                        <input type="text" id="facturaMovimiento" maxlength="40" placeholder="Ej: FE-12345"
+                            class="w-full px-4 py-3 rounded-xl input-focus bg-gray-50 hover:bg-white">
+                    </div>
+                    <div class="space-y-2">
+                        <label class="flex items-center gap-2 text-sm font-medium text-gray-700">
+                            <i class="fas fa-id-card text-primary"></i>NIT (solo salida)
+                        </label>
+                        <input type="text" id="nitMovimiento" maxlength="30" placeholder="Ej: 900123456-7"
+                            class="w-full px-4 py-3 rounded-xl input-focus bg-gray-50 hover:bg-white">
+                    </div>
+                </div>
+
                 <button onclick="agregarMovimiento()" type="button"
                     class="px-6 py-3 bg-sky-500 hover:bg-sky-600 text-white rounded-xl font-semibold transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow-md active:scale-95">
                     <i class="fas fa-plus-circle"></i>Agregar Movimiento

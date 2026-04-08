@@ -30,7 +30,7 @@
 
 // ==================== CONFIGURACIÓN ====================
 // ⚠️ PON AQUÍ TU URL REAL — es la misma para todas las acciones
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzSj8lQUCYXutHgKQYtrQohUCD-qexDykNP3NrP9TJr6HHpK099HYQNr1SEOymanQ7qHQ/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyEe2rwjJuuMPhcSJ9zFONLQSHxClYvV2sTgcQ0Qio8vP5SrPXo76lOK45zZxaW5mwP/exec';
 const CAJA_MENOR_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxOPHnypV2AxdSZd4U-BFjYM2nOahMCCwAoCGQHzx5fPMzMoyevWPvQYsG8uN1EA7EZ/exec';
 const PLANTILLA_GID = '1606540802'; // GID numérico de la hoja PLANTILLA
 
@@ -53,6 +53,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     showTab('acople');
+    toggleDatosSalida();
     actualizarListaMovimientos();
     actualizarResumen();
 
@@ -95,11 +96,25 @@ function showTab(tab) {
     }
 }
 
+function toggleDatosSalida() {
+    const tipo = document.getElementById('tipoMovimiento')?.value;
+    const bloque = document.getElementById('datosSalidaExtra');
+    if (!bloque) return;
+
+    if (tipo === 'salida') {
+        bloque.classList.remove('hidden');
+    } else {
+        bloque.classList.add('hidden');
+    }
+}
+
 // ==================== MOVIMIENTOS ====================
 function agregarMovimiento() {
     const tipo = document.getElementById('tipoMovimiento').value;
     const monto = parseMiles(document.getElementById('montoMovimiento').value);
     const concepto = document.getElementById('conceptoMovimiento').value.trim();
+    const factura = document.getElementById('facturaMovimiento')?.value.trim() || '';
+    const nit = document.getElementById('nitMovimiento')?.value.trim() || '';
 
     if (!monto || isNaN(monto) || monto <= 0) {
         showToast('Ingresa un monto válido', 'error');
@@ -110,9 +125,18 @@ function agregarMovimiento() {
         return;
     }
 
-    movimientos.push({ tipo, monto, concepto });
+    if (tipo === 'salida' && (!factura || !nit)) {
+        showToast('Para una salida debes ingresar factura y NIT', 'error');
+        return;
+    }
+
+    movimientos.push({ tipo, monto, concepto, factura, nit });
     document.getElementById('montoMovimiento').value = '';
     document.getElementById('conceptoMovimiento').value = '';
+    const facturaInput = document.getElementById('facturaMovimiento');
+    const nitInput = document.getElementById('nitMovimiento');
+    if (facturaInput) facturaInput.value = '';
+    if (nitInput) nitInput.value = '';
     actualizarListaMovimientos();
     actualizarResumen();
 }
@@ -206,6 +230,9 @@ function actualizarListaMovimientos() {
         const signo = isEntrada ? '+' : '-';
         const icon = isEntrada ? 'fa-arrow-down' : 'fa-arrow-up';
         const badgeBg = isEntrada ? 'bg-green-100' : 'bg-red-100';
+        const detalleSalida = !isEntrada
+            ? `<p class="text-xs text-gray-500 mt-0.5">Factura: ${mov.factura || '-'} · NIT: ${mov.nit || '-'}</p>`
+            : '';
 
         const item = document.createElement('div');
         item.className = 'mov-item flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3 shadow-sm mb-2 border border-gray-100';
@@ -213,7 +240,10 @@ function actualizarListaMovimientos() {
             <span class="${badgeBg} rounded-full p-2">
                 <i class="fas ${icon} ${color}"></i>
             </span>
-            <span class="font-medium flex-1 text-gray-700">${mov.concepto}</span>
+            <div class="flex-1 min-w-0">
+                <p class="font-medium text-gray-700 truncate">${mov.concepto}</p>
+                ${detalleSalida}
+            </div>
             <span class="${color} font-bold text-base">${signo} ${formatCOP(mov.monto)}</span>
             <button onclick="editarMovimiento(${idx})"
                 class="ml-2 text-gray-300 hover:text-sky-500 transition-colors p-1 rounded-lg hover:bg-sky-50"
@@ -290,7 +320,7 @@ async function cierreCaja() {
         } catch (pdfErr) {
             console.warn('[cierreCaja] No se pudo obtener PDF base64, usando enlace directo:', pdfErr);
             const pdfUrl = `https://docs.google.com/spreadsheets/d/1xoSAY47E2X9pAA7_hU6ZLzfHOaE2Br-kbeO4DXhuY1Q/export`
-                + `?format=pdf&gid=${PLANTILLA_GID}&portrait=true&size=letter&fitw=true&range=A2:D20`;
+                + `?format=pdf&gid=${PLANTILLA_GID}&portrait=true&size=letter&fitw=true&range=A2:F20`;
             mostrarModalComprobante(pdfUrl, false);
         }
 

@@ -44,7 +44,7 @@ function doPost(e) {
 
     if (action === 'acopleCaja') return acopleCaja(data.fecha, data.movimientos);
     if (action === 'registrarEntrada') return registrarMovimiento(data.fecha, data.monto, data.concepto, 'entrada');
-    if (action === 'registrarSalida') return registrarMovimiento(data.fecha, data.monto, data.concepto, 'salida');
+    if (action === 'registrarSalida') return registrarMovimiento(data.fecha, data.monto, data.concepto, 'salida', data.factura, data.nit);
     if (action === 'exportarComprobante') return exportarComprobante(data.fecha, data.movimientos);
 
     return jsonResponse({ success: false, message: 'Accion POST no valida: ' + action });
@@ -68,7 +68,7 @@ function acopleCaja(fecha, movimientos) {
     const plantillaSheet = ss.getSheetByName('PLANTILLA');
     if (!plantillaSheet) throw new Error('No existe la hoja PLANTILLA');
 
-    plantillaSheet.getRange('A4:D18').clearContent();
+    plantillaSheet.getRange('A4:F18').clearContent();
     plantillaSheet.getRange('B2').setValue(fecha);
 
     const entradas = movimientos.filter(function (m) { return m.tipo === 'entrada'; });
@@ -79,6 +79,8 @@ function acopleCaja(fecha, movimientos) {
       plantillaSheet.getRange(4 + i, 2).setValue(entradas[i] ? entradas[i].monto : '');
       plantillaSheet.getRange(4 + i, 3).setValue(salidas[i] ? salidas[i].concepto : '');
       plantillaSheet.getRange(4 + i, 4).setValue(salidas[i] ? salidas[i].monto : '');
+      plantillaSheet.getRange(4 + i, 5).setValue(salidas[i] ? (salidas[i].factura || '') : '');
+      plantillaSheet.getRange(4 + i, 6).setValue(salidas[i] ? (salidas[i].nit || '') : '');
     }
 
     const totalEntradas = entradas.reduce(function (s, m) { return s + (parseFloat(m.monto) || 0); }, 0);
@@ -87,10 +89,10 @@ function acopleCaja(fecha, movimientos) {
     plantillaSheet.getRange('D19').setValue(totalSalidas);
     plantillaSheet.getRange('B20').setValue(totalEntradas - totalSalidas);
 
-    const sourceRange = plantillaSheet.getRange('A2:D20');
+    const sourceRange = plantillaSheet.getRange('A2:F20');
     const ultimaFila = encontrarUltimaFilaConDatos(sheet);
     const filaInsertar = ultimaFila > 0 ? ultimaFila + 2 : 2;
-    sourceRange.copyTo(sheet.getRange(filaInsertar, 1, 19, 4));
+    sourceRange.copyTo(sheet.getRange(filaInsertar, 1, 19, 6));
 
     Logger.log('[acopleCaja] Guardado en hoja: ' + nombreHoja + ' fila: ' + filaInsertar);
     return jsonResponse({ success: true, message: 'Acople de caja registrado correctamente' });
@@ -102,7 +104,7 @@ function acopleCaja(fecha, movimientos) {
 
 // ==================== REGISTRO INDIVIDUAL ====================
 
-function registrarMovimiento(fecha, monto, concepto, tipo) {
+function registrarMovimiento(fecha, monto, concepto, tipo, factura, nit) {
   try {
     const { mes, anio } = parseFecha(fecha);
     const nombreHoja = MESES[mes] + ' ' + anio;
@@ -142,6 +144,8 @@ function registrarMovimiento(fecha, monto, concepto, tipo) {
     } else {
       sheet.getRange(filaInsertar, 3).setValue(concepto);
       sheet.getRange(filaInsertar, 4).setValue(monto).setNumberFormat('$ #,##0.00');
+      sheet.getRange(filaInsertar, 5).setValue(factura || '');
+      sheet.getRange(filaInsertar, 6).setValue(nit || '');
     }
 
     actualizarTotales(sheet);
@@ -292,7 +296,7 @@ function getPDFBase64() {
     const exportUrl = 'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/export'
       + '?format=pdf&size=letter&portrait=true&fitw=true'
       + '&sheetnames=false&printtitle=false&pagenumbers=false&gridlines=false&fzr=false'
-      + '&gid=' + plantillaSheet.getSheetId() + '&range=A2:D20';
+      + '&gid=' + plantillaSheet.getSheetId() + '&range=A2:F20';
 
     const token = ScriptApp.getOAuthToken();
     const response = UrlFetchApp.fetch(exportUrl, {
@@ -320,7 +324,7 @@ function exportarComprobante(fecha, movimientos) {
     const exportUrl = 'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID + '/export'
       + '?format=pdf&size=letter&portrait=true&fitw=true'
       + '&sheetnames=false&printtitle=false&pagenumbers=false&gridlines=false&fzr=false'
-      + '&gid=' + tempSheet.getSheetId() + '&range=A2:D20';
+      + '&gid=' + tempSheet.getSheetId() + '&range=A2:F20';
 
     ScriptApp.getProjectTriggers()
       .filter(function (t) { return t.getHandlerFunction() === 'borrarHojaTemporal'; })

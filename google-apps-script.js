@@ -222,6 +222,7 @@ function consultarCaja(mes, anio) {
     } catch (e) { Logger.log('[consultarCaja] Error leyendo I2/L2: ' + e); }
 
     const cajaFinal = cajaTotalMes + sobraFalta;
+    const registros = extraerRegistrosCaja(datos);
     const round2 = function (v) { return Math.round(v * 100) / 100; };
 
     Logger.log('[consultarCaja] totalEntradas=' + totalEntradas + ' totalSalidas=' + totalSalidas + ' saldo=' + saldo + ' cajaTotalMes=' + cajaTotalMes + ' sobraFalta=' + sobraFalta);
@@ -235,7 +236,8 @@ function consultarCaja(mes, anio) {
       saldo: round2(saldo),
       cajaTotalMes: round2(cajaTotalMes),
       sobraFalta: round2(sobraFalta),
-      cajaFinal: round2(cajaFinal)
+      cajaFinal: round2(cajaFinal),
+      registros: registros
     });
   } catch (error) {
     Logger.log('[consultarCaja] Error: ' + error);
@@ -418,4 +420,108 @@ function testAcople() {
 function testConsulta() {
   const resultado = consultarCaja('FEBRERO', '2026');
   Logger.log('Resultado: ' + resultado.getContent());
+}
+
+function extraerRegistrosCaja(datos) {
+  var registros = [];
+  var fechaActual = '';
+  var contador = 0;
+
+  for (var i = 0; i < datos.length; i++) {
+    var row = datos[i] || [];
+
+    // Detecta y arrastra la fecha del bloque actual.
+    if (esFechaValida_(row[0])) fechaActual = normalizarFecha_(row[0]);
+    if (esFechaValida_(row[1])) fechaActual = normalizarFecha_(row[1]);
+
+    var conceptoEntrada = limpiarTexto_(row[0]);
+    var montoEntrada = parseMonto_(row[1]);
+    var conceptoSalida = limpiarTexto_(row[2]);
+    var montoSalida = parseMonto_(row[3]);
+    var factura = limpiarTexto_(row[4]);
+    var nit = limpiarTexto_(row[5]);
+
+    if (conceptoEntrada && montoEntrada > 0 && !esTextoSistema_(conceptoEntrada)) {
+      contador++;
+      registros.push({
+        numero: contador,
+        fecha: fechaActual || '',
+        tipo: 'entrada',
+        concepto: conceptoEntrada,
+        monto: Math.round(montoEntrada * 100) / 100,
+        factura: '',
+        nit: ''
+      });
+    }
+
+    if (conceptoSalida && montoSalida > 0 && !esTextoSistema_(conceptoSalida)) {
+      contador++;
+      registros.push({
+        numero: contador,
+        fecha: fechaActual || '',
+        tipo: 'salida',
+        concepto: conceptoSalida,
+        monto: Math.round(montoSalida * 100) / 100,
+        factura: factura,
+        nit: nit
+      });
+    }
+  }
+
+  return registros;
+}
+
+function esFechaValida_(valor) {
+  if (valor instanceof Date) return !isNaN(valor.getTime());
+  if (valor === '' || valor === null || valor === undefined) return false;
+  var s = String(valor).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return true;
+  if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) return true;
+  if (/^\d{2}-\d{2}-\d{4}/.test(s)) return true;
+  return false;
+}
+
+function normalizarFecha_(valor) {
+  if (valor instanceof Date) {
+    var y = valor.getFullYear();
+    var m = ('0' + (valor.getMonth() + 1)).slice(-2);
+    var d = ('0' + valor.getDate()).slice(-2);
+    return d + '/' + m + '/' + y;
+  }
+  var s = String(valor || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    var p = s.split('T')[0].split('-');
+    return p[2] + '/' + p[1] + '/' + p[0];
+  }
+  if (/^\d{2}[\/-]\d{2}[\/-]\d{4}/.test(s)) {
+    return s.replace(/-/g, '/');
+  }
+  return s;
+}
+
+function limpiarTexto_(valor) {
+  if (valor === null || valor === undefined) return '';
+  return String(valor).trim();
+}
+
+function parseMonto_(valor) {
+  if (typeof valor === 'number') return isNaN(valor) ? 0 : valor;
+  if (valor === '' || valor === null || valor === undefined) return 0;
+  var s = String(valor).replace(/[^\d,.-]/g, '');
+  if (/\,\d{2}$/.test(s)) s = s.replace(/\./g, '').replace(',', '.');
+  var n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
+function esTextoSistema_(texto) {
+  var t = String(texto || '').toUpperCase().trim();
+  if (!t) return true;
+  if (t === 'TOTAL') return true;
+  if (t === 'FECHA DE CAJA') return true;
+  if (t === 'TOTAL DEL DIA') return true;
+  if (t === 'TOTAL DEL DÍA') return true;
+  if (t === 'CONCEPTO DE ENTRADA') return true;
+  if (t === 'CONCEPTO DE SALIDA') return true;
+  if (t.indexOf('CAJA DE ') === 0) return true;
+  return false;
 }

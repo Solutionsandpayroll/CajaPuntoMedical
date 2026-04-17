@@ -30,12 +30,14 @@
 
 // ==================== CONFIGURACIÓN ====================
 // ⚠️ PON AQUÍ TU URL REAL — es la misma para todas las acciones
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyEe2rwjJuuMPhcSJ9zFONLQSHxClYvV2sTgcQ0Qio8vP5SrPXo76lOK45zZxaW5mwP/exec';
-const CAJA_MENOR_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxOPHnypV2AxdSZd4U-BFjYM2nOahMCCwAoCGQHzx5fPMzMoyevWPvQYsG8uN1EA7EZ/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzXOp2nO6nRCfZfC_batjKMpk7EeQBW20D1iinBI4LvlkP31YdzSKakcGSQ1WtR9vz8QQ/exec';
+const CAJA_MENOR_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx236UZiHZ05OzTazF7VIkCisRXdp3GzwAZ_JfvIB8lShxJHeCxjIumcNbnSdLu7UZp/exec';
 const PLANTILLA_GID = '1606540802'; // GID numérico de la hoja PLANTILLA
+const CAJA_MENOR_BASE = 4000000;
 
 // ==================== ESTADO ====================
 let movimientos = [];
+let _datosHistorialCaja = [];
 
 // ==================== INICIALIZACIÓN ====================
 document.addEventListener('DOMContentLoaded', function () {
@@ -383,13 +385,14 @@ async function registrarCajaMenor(event) {
     const factura = document.getElementById('facturaCajaMenor').value.trim();
     const valor = parseMiles(document.getElementById('valorCajaMenor').value);
     const observaciones = document.getElementById('obsCajaMenor').value.trim();
+    const esReembolso = String(detalle || '').trim().toUpperCase() === 'REEMBOLSO';
 
     if (!fecha || !detalle || !valor || isNaN(valor) || valor <= 0) {
         showToast('Completa los campos obligatorios (fecha, detalle y valor)', 'error');
         return;
     }
 
-    const payload = { action: 'registrarCajaMenor', fecha, detalle, nit, proveedor, factura, valor, observaciones };
+    const payload = { action: 'registrarCajaMenor', fecha, detalle, nit, proveedor, factura, valor, observaciones, esReembolso };
 
     const submitBtn = document.querySelector('#cajaMenorForm [type="submit"]');
     if (submitBtn) {
@@ -409,7 +412,7 @@ async function registrarCajaMenor(event) {
         });
 
         // Con no-cors asumimos éxito si no hubo excepción de red
-        showToast('Registro guardado correctamente ✓', 'success');
+        showToast(esReembolso ? 'Reembolso guardado correctamente ✓' : 'Registro guardado correctamente ✓', 'success');
         document.getElementById('cajaMenorForm').reset();
 
     } catch (err) {
@@ -503,6 +506,151 @@ function mostrarResumen(data) {
     if (el('totalSalidas')) el('totalSalidas').textContent = formatCOP(data.totalSalidas || 0);
     if (el('saldoCaja')) el('saldoCaja').textContent = formatCOP(data.saldo || 0);
     if (el('cajaTotalMes')) el('cajaTotalMes').textContent = formatCOP(data.cajaTotalMes || 0);
+
+    _datosHistorialCaja = (Array.isArray(data.registros) ? data.registros : []).filter(r => {
+        const concepto = String(r?.concepto || '').trim().toUpperCase();
+        return concepto !== 'FECHA DE CAJA'
+            && concepto !== 'TOTAL DEL DIA'
+            && concepto !== 'TOTAL DEL DÍA';
+    });
+
+    const conceptos = [...new Set(_datosHistorialCaja.map(r => (r.concepto || '').trim()).filter(Boolean))].sort();
+    const filtroConcepto = el('filtroConceptoCaja');
+    if (filtroConcepto) {
+        filtroConcepto.innerHTML = '<option value="">Todos los conceptos</option>'
+            + conceptos.map(c => `<option value="${c}">${c}</option>`).join('');
+    }
+
+    const filtroTipo = el('filtroTipoCaja');
+    if (filtroTipo) filtroTipo.value = '';
+    const filtroFechaDesde = el('filtroFechaDesdeCaja');
+    if (filtroFechaDesde) filtroFechaDesde.value = '';
+    const filtroFechaHasta = el('filtroFechaHastaCaja');
+    if (filtroFechaHasta) filtroFechaHasta.value = '';
+
+    filtrarTablaCaja();
+}
+
+function filtrarTablaCaja() {
+    const filtroTipo = document.getElementById('filtroTipoCaja')?.value || '';
+    const filtroConcepto = document.getElementById('filtroConceptoCaja')?.value || '';
+    const filtroFechaDesde = document.getElementById('filtroFechaDesdeCaja')?.value || '';
+    const filtroFechaHasta = document.getElementById('filtroFechaHastaCaja')?.value || '';
+
+    const fechaDesde = parseDateInputValue_(filtroFechaDesde);
+    const fechaHasta = parseDateInputValue_(filtroFechaHasta);
+
+    let datos = _datosHistorialCaja;
+    if (filtroTipo) datos = datos.filter(r => (r.tipo || '').toLowerCase() === filtroTipo);
+    if (filtroConcepto) datos = datos.filter(r => (r.concepto || '') === filtroConcepto);
+    if (fechaDesde || fechaHasta) {
+        datos = datos.filter(r => {
+            const fechaRegistro = normalizarFechaFiltroCaja_(r.fecha);
+            if (!fechaRegistro) return false;
+            if (fechaDesde && fechaRegistro < fechaDesde) return false;
+            if (fechaHasta && fechaRegistro > fechaHasta) return false;
+            return true;
+        });
+    }
+
+    const tabla = document.getElementById('tablaHistorialCaja');
+    if (!tabla) return;
+
+    if (!datos.length) {
+        tabla.innerHTML = `
+            <div class="text-center py-10 text-gray-400">
+                <i class="fas fa-inbox text-4xl mb-3 block"></i>
+                <p class="font-medium">Sin registros para los filtros seleccionados</p>
+            </div>`;
+        return;
+    }
+
+    const totalFiltrado = datos.reduce((s, r) => {
+        const monto = Number(r.monto) || 0;
+        const tipo = String(r.tipo || '').toLowerCase();
+        return tipo === 'salida' ? s - monto : s + monto;
+    }, 0);
+
+    tabla.innerHTML = `
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-50 border-b border-gray-200 text-left">
+                        <th class="px-4 py-3 font-semibold text-gray-600">#</th>
+                        <th class="px-4 py-3 font-semibold text-gray-600">Fecha</th>
+                        <th class="px-4 py-3 font-semibold text-gray-600">Tipo</th>
+                        <th class="px-4 py-3 font-semibold text-gray-600">Concepto</th>
+                        <th class="px-4 py-3 font-semibold text-gray-600">Factura</th>
+                        <th class="px-4 py-3 font-semibold text-gray-600">NIT</th>
+                        <th class="px-4 py-3 font-semibold text-gray-600 text-right">Monto</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${datos.map((r, idx) => {
+                        const tipo = (r.tipo || '').toLowerCase() === 'salida' ? 'salida' : 'entrada';
+                        const badge = tipo === 'entrada'
+                            ? '<span class="bg-green-100 text-green-700 text-xs font-semibold px-2.5 py-1 rounded-full">Entrada</span>'
+                            : '<span class="bg-red-100 text-red-700 text-xs font-semibold px-2.5 py-1 rounded-full">Salida</span>';
+                        const colorMonto = tipo === 'entrada' ? 'text-green-700' : 'text-red-700';
+                        const signo = tipo === 'entrada' ? '+' : '-';
+                        return `
+                        <tr class="border-b border-gray-100 hover:bg-sky-50 transition-colors">
+                            <td class="px-4 py-3 text-gray-400">${idx + 1}</td>
+                            <td class="px-4 py-3 text-gray-700">${formatFecha(r.fecha)}</td>
+                            <td class="px-4 py-3">${badge}</td>
+                            <td class="px-4 py-3 text-gray-700">${r.concepto || '-'}</td>
+                            <td class="px-4 py-3 text-gray-500">${r.factura || '-'}</td>
+                            <td class="px-4 py-3 text-gray-500">${r.nit || '-'}</td>
+                            <td class="px-4 py-3 text-right font-semibold ${colorMonto}">${signo} ${formatCOP(r.monto || 0)}</td>
+                        </tr>`;
+                    }).join('')}
+                </tbody>
+                <tfoot>
+                    <tr class="bg-sky-50 font-bold border-t-2 border-sky-200">
+                        <td colspan="6" class="px-4 py-3 text-sky-800">Total neto filtrado — ${datos.length} registro${datos.length !== 1 ? 's' : ''}</td>
+                        <td class="px-4 py-3 text-right text-sky-800">${formatCOP(totalFiltrado)}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>`;
+}
+
+function parseDateInputValue_(value) {
+    if (!value) return null;
+    const parts = String(value).split('-');
+    if (parts.length !== 3) return null;
+    const y = Number(parts[0]);
+    const m = Number(parts[1]);
+    const d = Number(parts[2]);
+    if (!y || !m || !d) return null;
+    return new Date(y, m - 1, d);
+}
+
+function normalizarFechaFiltroCaja_(fecha) {
+    if (!fecha) return null;
+    if (fecha instanceof Date && !isNaN(fecha.getTime())) {
+        return new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
+    }
+
+    const str = String(fecha).trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+        const [y, m, d] = str.split('T')[0].split('-').map(Number);
+        return new Date(y, m - 1, d);
+    }
+    if (/^\d{2}\/\d{2}\/\d{4}/.test(str)) {
+        const [d, m, y] = str.split('/').map(Number);
+        return new Date(y, m - 1, d);
+    }
+    if (/^\d{2}-\d{2}-\d{4}/.test(str)) {
+        const [d, m, y] = str.split('-').map(Number);
+        return new Date(y, m - 1, d);
+    }
+
+    const parsed = new Date(str);
+    if (!isNaN(parsed.getTime())) {
+        return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+    }
+    return null;
 }
 
 // ==================== CONSULTA DE CAJA MENOR ====================
@@ -525,6 +673,7 @@ async function consultarCajaMenor(mes, anio) {
 
 // ==================== PANEL CONSULTA CAJA MENOR ====================
 let _datosCM = [];
+let _vistaCM = 'gastos';
 
 async function consultarCajaMenorPanel() {
     const mes  = document.getElementById('mesCM').value;
@@ -550,26 +699,23 @@ async function consultarCajaMenorPanel() {
         const data = await response.json();
 
         if (data.success) {
-            _datosCM = data.registros || [];
+            _datosCM = (data.registros || []).map(r => {
+                const tipoRegistro = String(r.tipoRegistro || 'GASTO').toUpperCase() === 'REEMBOLSO'
+                    ? 'REEMBOLSO'
+                    : 'GASTO';
+                return { ...r, tipoRegistro };
+            });
 
             // Mostrar total caja (H93)
             const el = id => document.getElementById(id);
-            el('totalCajaMenorMes').textContent = formatCOP(data.totalCaja || 0);
-
-            // Poblar filtros con valores únicos
-            const detalles    = [...new Set(_datosCM.map(r => r.detalle).filter(Boolean))].sort();
-            const proveedores = [...new Set(_datosCM.map(r => r.proveedor).filter(Boolean))].sort();
-
-            const filtroDetalle = el('filtroDetalleCM');
-            filtroDetalle.innerHTML = '<option value="">Todos los detalles</option>' +
-                detalles.map(d => `<option value="${d}">${d}</option>`).join('');
-
-            const filtroProveedor = el('filtroProveedorCM');
-            filtroProveedor.innerHTML = '<option value="">Todos los proveedores</option>' +
-                proveedores.map(p => `<option value="${p}">${p}</option>`).join('');
+            const totalGastadoMes = Number(data.totalCaja) || 0;
+            const saldoActual = CAJA_MENOR_BASE - totalGastadoMes;
+            el('totalCajaMenorMes').textContent = formatCOP(totalGastadoMes);
+            if (el('saldoActualCajaMenor')) el('saldoActualCajaMenor').textContent = formatCOP(saldoActual);
+            if (el('conteoCajaMenor')) el('conteoCajaMenor').textContent = '—';
 
             el('resultadoCM').classList.remove('hidden');
-            filtrarTablaCM();
+            cambiarVistaCM('gastos');
         } else {
             showToast(data.message || 'No se encontraron datos para ese período', 'warning');
             document.getElementById('resultadoCM')?.classList.add('hidden');
@@ -588,11 +734,73 @@ async function consultarCajaMenorPanel() {
     }
 }
 
+function obtenerDatosVistaCM() {
+    return _datosCM.filter(r => {
+        const tipo = String(r.tipoRegistro || 'GASTO').toUpperCase();
+        return _vistaCM === 'reembolsos' ? tipo === 'REEMBOLSO' : tipo !== 'REEMBOLSO';
+    });
+}
+
+function actualizarTabsVistaCM() {
+    const tabGastos = document.getElementById('tabVistaGastosCM');
+    const tabReembolsos = document.getElementById('tabVistaReembolsosCM');
+    const titulo = document.getElementById('tituloTablaCM');
+
+    if (tabGastos) {
+        const activa = _vistaCM === 'gastos';
+        tabGastos.classList.toggle('bg-sky-600', activa);
+        tabGastos.classList.toggle('text-white', activa);
+        tabGastos.classList.toggle('shadow-sm', activa);
+        tabGastos.classList.toggle('text-gray-600', !activa);
+        tabGastos.classList.toggle('hover:bg-white', !activa);
+    }
+    if (tabReembolsos) {
+        const activa = _vistaCM === 'reembolsos';
+        tabReembolsos.classList.toggle('bg-sky-600', activa);
+        tabReembolsos.classList.toggle('text-white', activa);
+        tabReembolsos.classList.toggle('shadow-sm', activa);
+        tabReembolsos.classList.toggle('text-gray-600', !activa);
+        tabReembolsos.classList.toggle('hover:bg-white', !activa);
+    }
+    if (titulo) {
+        titulo.textContent = _vistaCM === 'reembolsos' ? 'Registros de Reembolsos' : 'Registros de Gastos';
+    }
+}
+
+function poblarFiltrosCM() {
+    const el = id => document.getElementById(id);
+    const datosVista = obtenerDatosVistaCM();
+
+    const detalles = [...new Set(datosVista.map(r => r.detalle).filter(Boolean))].sort();
+    const proveedores = [...new Set(datosVista.map(r => r.proveedor).filter(Boolean))].sort();
+
+    const filtroDetalle = el('filtroDetalleCM');
+    if (filtroDetalle) {
+        filtroDetalle.innerHTML = '<option value="">Todos los detalles</option>' +
+            detalles.map(d => `<option value="${d}">${d}</option>`).join('');
+        filtroDetalle.value = '';
+    }
+
+    const filtroProveedor = el('filtroProveedorCM');
+    if (filtroProveedor) {
+        filtroProveedor.innerHTML = '<option value="">Todos los proveedores</option>' +
+            proveedores.map(p => `<option value="${p}">${p}</option>`).join('');
+        filtroProveedor.value = '';
+    }
+}
+
+function cambiarVistaCM(vista) {
+    _vistaCM = vista === 'reembolsos' ? 'reembolsos' : 'gastos';
+    actualizarTabsVistaCM();
+    poblarFiltrosCM();
+    filtrarTablaCM();
+}
+
 function filtrarTablaCM() {
     const filtroDetalle   = document.getElementById('filtroDetalleCM')?.value || '';
     const filtroProveedor = document.getElementById('filtroProveedorCM')?.value || '';
 
-    let datos = _datosCM;
+    let datos = obtenerDatosVistaCM();
     if (filtroDetalle)   datos = datos.filter(r => r.detalle   === filtroDetalle);
     if (filtroProveedor) datos = datos.filter(r => r.proveedor === filtroProveedor);
 
@@ -767,7 +975,18 @@ function abrirEditarCM(idx) {
     if (!r) return;
     _editandoCMIdx = idx;
 
-    const detalles = ['CAFETERÍA', 'TRANSPORTE', 'ASEO', 'PARQUEADERO', 'ENVÍOS', 'OTROS'];
+    const detalles = [
+        'SERVICIO DE ASEO',
+        'TRANSPORTE',
+        'ELEMENTOS DE ASEO Y CAFETERIA',
+        'PAPELERIA Y UTILES',
+        'PARQUEADEROS',
+        'TAXIS O BUSES',
+        'RESTAURANTE O CASINO',
+        'COMBUSTIBRE Y LUBRICANTES',
+        'OTROS',
+        'REEMBOLSO'
+    ];
     const selectEl = document.getElementById('editCM_detalle');
     if (selectEl) {
         selectEl.innerHTML = detalles
@@ -840,7 +1059,10 @@ async function guardarEdicionCM() {
 }
 
 // ==================== CONTEO DE DINERO ====================
-function abrirConteoDinero() {
+let _conteoTargetId = 'cajaFinalHoja';
+
+function abrirConteoDinero(targetId = 'cajaFinalHoja') {
+    _conteoTargetId = targetId || 'cajaFinalHoja';
     // Limpiar campos
     const ids = ['cnt_m_50','cnt_m_100','cnt_m_200','cnt_m_500','cnt_m_1000',
                  'cnt_b_1000','cnt_b_2000','cnt_b_5000','cnt_b_10000',
@@ -878,7 +1100,7 @@ function calcularConteo() {
 
 function aplicarConteo() {
     const total = window._conteoTotal || 0;
-    const el = document.getElementById('cajaFinalHoja');
+    const el = document.getElementById(_conteoTargetId);
     if (el) el.textContent = formatCOP(total);
     cerrarConteoDinero();
     showToast('Total aplicado a Sobra / Falta', 'success');
@@ -894,7 +1116,9 @@ window.cierreCaja = cierreCaja;
 window.consultarCaja = consultarCaja;
 window.consultarCajaMenor = consultarCajaMenor;
 window.consultarCajaMenorPanel = consultarCajaMenorPanel;
+window.cambiarVistaCM = cambiarVistaCM;
 window.fmtMiles = fmtMiles;
+window.filtrarTablaCaja = filtrarTablaCaja;
 window.filtrarTablaCM = filtrarTablaCM;
 window.abrirEditarCM = abrirEditarCM;
 window.cerrarEditarCM = cerrarEditarCM;

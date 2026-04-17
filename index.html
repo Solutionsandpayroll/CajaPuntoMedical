@@ -377,6 +377,53 @@
                         <span id="cajaFinalHoja" class="text-2xl font-bold text-lime-900">—</span>
                     </div>
                 </div>
+
+                <!-- Filtros de historial -->
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mt-6">
+                    <p class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Filtrar historial mensual</p>
+                    <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="space-y-2">
+                            <label class="flex items-center gap-2 text-sm font-medium text-gray-700">
+                                <i class="fas fa-exchange-alt text-primary"></i>Tipo
+                            </label>
+                            <select id="filtroTipoCaja" onchange="filtrarTablaCaja()"
+                                class="w-full px-4 py-3 rounded-xl input-focus bg-gray-50 hover:bg-white cursor-pointer">
+                                <option value="">Todos</option>
+                                <option value="entrada">Entrada</option>
+                                <option value="salida">Salida</option>
+                            </select>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="flex items-center gap-2 text-sm font-medium text-gray-700">
+                                <i class="fas fa-list text-primary"></i>Concepto
+                            </label>
+                            <select id="filtroConceptoCaja" onchange="filtrarTablaCaja()"
+                                class="w-full px-4 py-3 rounded-xl input-focus bg-gray-50 hover:bg-white cursor-pointer">
+                                <option value="">Todos los conceptos</option>
+                            </select>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="flex items-center gap-2 text-sm font-medium text-gray-700">
+                                <i class="fas fa-calendar-day text-primary"></i>Fecha desde
+                            </label>
+                            <input type="date" id="filtroFechaDesdeCaja" onchange="filtrarTablaCaja()"
+                                class="w-full px-4 py-3 rounded-xl input-focus bg-gray-50 hover:bg-white">
+                        </div>
+                        <div class="space-y-2">
+                            <label class="flex items-center gap-2 text-sm font-medium text-gray-700">
+                                <i class="fas fa-calendar-week text-primary"></i>Fecha hasta
+                            </label>
+                            <input type="date" id="filtroFechaHastaCaja" onchange="filtrarTablaCaja()"
+                                class="w-full px-4 py-3 rounded-xl input-focus bg-gray-50 hover:bg-white">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabla historial -->
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mt-6">
+                    <p class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Historial de arqueo del mes</p>
+                    <div id="tablaHistorialCaja"></div>
+                </div>
             </div>
         </div>
 
@@ -435,20 +482,52 @@
             <!-- Resultados -->
             <div id="resultadoCM" class="hidden space-y-6">
 
-                <!-- Total caja del mes -->
+                <!-- Resumen en cards -->
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                     <p class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Resumen del período</p>
-                    <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-5 max-w-xs">
-                        <div class="flex items-center gap-2 mb-1">
-                            <i class="fas fa-coins text-yellow-500"></i>
-                            <span class="text-sm font-semibold text-yellow-700">Total Caja Menor del Mes</span>
+                    <div class="grid md:grid-cols-3 gap-4">
+                        <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-5">
+                            <div class="flex items-center gap-2 mb-1">
+                                <i class="fas fa-coins text-yellow-500"></i>
+                                <span class="text-sm font-semibold text-yellow-700">Total Gastado del Mes</span>
+                            </div>
+                            <span id="totalCajaMenorMes" class="text-2xl font-bold text-yellow-900">$0,00</span>
                         </div>
-                        <span id="totalCajaMenorMes" class="text-2xl font-bold text-yellow-900">$0,00</span>
+                        <div class="bg-blue-50 border border-blue-200 rounded-xl p-5">
+                            <div class="flex items-center gap-2 mb-1">
+                                <i class="fas fa-wallet text-blue-500"></i>
+                                <span class="text-sm font-semibold text-blue-700">Saldo Actual de la Caja</span>
+                            </div>
+                            <span id="saldoActualCajaMenor" class="text-2xl font-bold text-blue-900">$0,00</span>
+                        </div>
+                        <div class="bg-lime-50 border border-lime-200 rounded-xl p-5">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="flex items-center gap-2">
+                                    <i class="fas fa-calculator text-lime-500"></i>
+                                    <span class="text-sm font-semibold text-lime-700">Contar Dinero</span>
+                                </div>
+                                <button onclick="abrirConteoDinero('conteoCajaMenor')"
+                                    class="flex items-center gap-1.5 px-3 py-1.5 bg-lime-600 hover:bg-lime-700 active:scale-95 text-white text-xs font-semibold rounded-lg transition-all shadow-sm">
+                                    <i class="fas fa-calculator text-xs"></i>Conteo
+                                </button>
+                            </div>
+                            <span id="conteoCajaMenor" class="text-2xl font-bold text-lime-900">—</span>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Filtros -->
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <div class="flex items-center gap-2 mb-5 bg-gray-100 p-1 rounded-xl w-fit">
+                        <button id="tabVistaGastosCM" onclick="cambiarVistaCM('gastos')"
+                            class="px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-sky-600 text-white shadow-sm">
+                            <i class="fas fa-receipt mr-1.5"></i>Gastos
+                        </button>
+                        <button id="tabVistaReembolsosCM" onclick="cambiarVistaCM('reembolsos')"
+                            class="px-4 py-2 rounded-lg text-sm font-semibold transition-all text-gray-600 hover:bg-white">
+                            <i class="fas fa-rotate-left mr-1.5"></i>Reembolsos
+                        </button>
+                    </div>
                     <p class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Filtrar registros</p>
                     <div class="grid md:grid-cols-2 gap-4">
                         <div class="space-y-2">
@@ -467,6 +546,7 @@
                                     <option value="RESTAURANTE O CASINO">RESTAURANTE O CASINO</option>
                                     <option value="COMBUSTIBRE Y LUBRICANTES">COMBUSTIBRE Y LUBRICANTES</option>
                                     <option value="OTROS">OTROS</option>
+                                    <option value="REEMBOLSO">REEMBOLSO</option>
                             </select>
                         </div>
                         <div class="space-y-2">
@@ -483,7 +563,7 @@
 
                 <!-- Tabla de registros -->
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                    <p class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Registros</p>
+                    <p id="tituloTablaCM" class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Registros de Gastos</p>
                     <div id="tablaCM"></div>
                 </div>
 
@@ -526,6 +606,7 @@
                                     <option value="RESTAURANTE O CASINO">RESTAURANTE O CASINO</option>
                                     <option value="COMBUSTIBRE Y LUBRICANTES">COMBUSTIBRE Y LUBRICANTES</option>
                                     <option value="OTROS">OTROS</option>
+                                    <option value="REEMBOLSO">REEMBOLSO</option>
                             </select>
                         </div>
                         <div class="space-y-2">
@@ -691,7 +772,7 @@
                         <i class="fas fa-calculator text-lime-600 text-base"></i>
                     </div>
                     <div>
-                        <h3 class="text-base font-bold text-gray-800">Conteo de Dinero</h3>
+                        <h3 class="text-base font-bold text-gray-800">Conteo</h3>
                         <p class="text-xs text-gray-500">Ingresa la cantidad de cada denominación</p>
                     </div>
                 </div>

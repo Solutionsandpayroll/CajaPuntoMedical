@@ -40,7 +40,7 @@ function doPost(e) {
     if (action === 'registrarCajaMenor') {
       return registrarCajaMenor(
         data.fecha, data.detalle, data.nit,
-        data.proveedor, data.factura, data.valor, data.observaciones
+        data.proveedor, data.factura, data.valor, data.observaciones, data.esReembolso
       );
     }
     if (action === 'editarCajaMenor') {
@@ -58,7 +58,7 @@ function doPost(e) {
 
 // ==================== REGISTRO ====================
 
-function registrarCajaMenor(fecha, detalle, nit, proveedor, factura, valor, observaciones) {
+function registrarCajaMenor(fecha, detalle, nit, proveedor, factura, valor, observaciones, esReembolso) {
   try {
     const { mes, anio } = parseFecha(fecha);
     Logger.log('[registrarCajaMenor] fecha=' + fecha + ' mes=' + mes + ' anio=' + anio + ' detalle=' + detalle + ' valor=' + valor);
@@ -115,6 +115,11 @@ function registrarCajaMenor(fecha, detalle, nit, proveedor, factura, valor, obse
       observaciones || ''
     ]]);
 
+    // Columna J: tipo de registro (GASTO / REEMBOLSO)
+    var detalleUpper = String(detalle || '').trim().toUpperCase();
+    var esReembolsoFinal = !!esReembolso || detalleUpper === 'REEMBOLSO';
+    sheet.getRange(filaLibre, 10).setValue(esReembolsoFinal ? 'REEMBOLSO' : 'GASTO');
+
     // Formato de moneda en columna H (col 8)
     sheet.getRange(filaLibre, 8).setNumberFormat('$ #,##0.00');
 
@@ -161,24 +166,19 @@ function consultarCajaMenor(mes, anio) {
         proveedor: datos[i][5],  // Col F
         factura: datos[i][6],  // Col G
         valor: datos[i][7],  // Col H
-        observaciones: datos[i][8]   // Col I
+        observaciones: datos[i][8],   // Col I
+        tipoRegistro: (datos[i][9] || 'GASTO').toString().trim().toUpperCase() // Col J
       });
     }
 
     Logger.log('[consultarCajaMenor] Registros encontrados: ' + registros.length);
 
-    // Total de caja menor del mes → siempre en H93
-    let totalCaja = 0;
-    try {
-      const valorH93 = sheet.getRange('H93').getValue();
-      totalCaja = (valorH93 !== '' && valorH93 !== null && !isNaN(parseFloat(valorH93)))
-        ? parseFloat(valorH93)
-        : 0;
-    } catch (e) {
-      Logger.log('[consultarCajaMenor] Error leyendo H93: ' + e);
-    }
+    // Total de gastos del mes: excluye reembolsos
+    const totalCaja = registros
+      .filter(function (r) { return (r.tipoRegistro || 'GASTO') !== 'REEMBOLSO'; })
+      .reduce(function (s, r) { return s + (Number(r.valor) || 0); }, 0);
 
-    Logger.log('[consultarCajaMenor] totalCaja (H93)=' + totalCaja);
+    Logger.log('[consultarCajaMenor] totalCaja (solo gastos)=' + totalCaja);
     return jsonResponse({ success: true, registros: registros, totalCaja: totalCaja });
 
   } catch (error) {
@@ -296,16 +296,16 @@ function parseFecha(fecha) {
 function crearHojaCajaMenor(ss, nombreHoja) {
   const sheet = ss.insertSheet(nombreHoja);
 
-  // Encabezados en fila 9, columnas C-I
-  const headers = [['FECHA', 'DETALLE', 'NIT', 'PROVEEDOR', 'N° FAC', 'VALOR', 'OBSERVACIONES']];
-  const anchos = [120, 180, 120, 180, 120, 120, 200];
+  // Encabezados en fila 9, columnas C-J
+  const headers = [['FECHA', 'DETALLE', 'NIT', 'PROVEEDOR', 'N° FAC', 'VALOR', 'OBSERVACIONES', 'TIPO REGISTRO']];
+  const anchos = [120, 180, 120, 180, 120, 120, 200, 140];
 
   // Encabezado de columna B
   sheet.getRange(9, 2).setValue('#').setFontWeight('bold').setBackground('#ffe599')
     .setBorder(true, true, true, true, true, true);
   sheet.setColumnWidth(2, 40);
 
-  const headerRange = sheet.getRange(9, 3, 1, 7);
+  const headerRange = sheet.getRange(9, 3, 1, 8);
   headerRange.setValues(headers);
   headerRange.setFontWeight('bold').setBackground('#ffe599')
     .setBorder(true, true, true, true, true, true);
